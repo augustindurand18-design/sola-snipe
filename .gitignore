@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.enc
+target/
+Cargo.lock
+.DS_Store
+package-lock.json
