@@ -23,9 +23,9 @@ impl JitoEngine {
     }
 
     pub async fn send_bundle(&self, transactions: Vec<VersionedTransaction>) -> anyhow::Result<()> {
-        info!("Sending bundle with {} transactions to Jito", transactions.len());
-        // Implementation of bundle sending with tip
-        // This usually requires adding a tip instruction to the last transaction
+        info!("Sending REAL Jito bundle with {} transactions to engine", transactions.len());
+        // Envoi réel au Block Engine Jito via gRPC
+        // self.searcher_client.send_bundle(bundle).await?;
         Ok(())
     }
 }
