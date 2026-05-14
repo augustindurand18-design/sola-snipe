@@ -109,13 +109,17 @@ impl GrpcEngine {
                     }
                 }
                 Err(e) => {
-                    error!("⚠️ Déconnexion gRPC détectée : {:?}. Reconnexion dans 1 seconde...", e);
+                    error!("⚠️ Erreur du stream interne : {:?}", e);
                     break; // Sort de la boucle interne pour relancer la souscription
                 }
             }
-        } // Fin de la boucle interne (stream.next)
+        } // Fin du while
+        } // Fin du Ok
+        Err(e) => {
+            error!("⚠️ Échec de connexion gRPC : {:?}. Reconnexion dans 1 seconde...", e);
+        }
+        } // Fin du match
         
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     } // Fin de la boucle externe (loop)
-}
 }
