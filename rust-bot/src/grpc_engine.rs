@@ -5,24 +5,28 @@ use yellowstone_grpc_proto::geyser::{
 use futures::stream::StreamExt;
 use log::{info, error};
 use std::collections::HashMap;
+use std::sync::Arc;
 use crate::parser::{PumpFunParser, ParsedInstruction};
 use crate::strategy::RugRidingStrategy;
 use crate::filters::TokenFilter;
+use crate::telegram::TelegramAlerts;
 
 pub struct GrpcEngine {
     endpoint: String,
+    telegram: Arc<TelegramAlerts>,
 }
 
 impl GrpcEngine {
-    pub async fn new(endpoint: &str) -> anyhow::Result<Self> {
+    pub async fn new(endpoint: &str, telegram: Arc<TelegramAlerts>) -> anyhow::Result<Self> {
         info!("🔧 Moteur gRPC initialisé (endpoint: {})", endpoint);
         Ok(Self {
             endpoint: endpoint.to_string(),
+            telegram,
         })
     }
 
     pub async fn subscribe_pump_fun(&mut self, risk_manager: crate::risk_manager::RiskManager) -> anyhow::Result<()> {
-        let mut strategy = RugRidingStrategy::new(risk_manager);
+        let mut strategy = RugRidingStrategy::new(risk_manager, self.telegram.clone());
         
         loop {
             info!("🔌 Tentative de connexion gRPC à {}...", self.endpoint);
@@ -74,7 +78,7 @@ impl GrpcEngine {
 
             match client.subscribe_with_request(Some(request)).await {
                 Ok((_, mut stream)) => {
-                    info!("✅ Connecté au stream gRPC Yellowstone ! En écoute sur Pump.fun...");
+                    info!("✅ Connecté au stream gRPC ! En écoute sur Pump.fun...");
                     while let Some(message) = stream.next().await {
                         match message {
                             Ok(msg) => {
@@ -93,14 +97,17 @@ impl GrpcEngine {
                                                             let parsed = PumpFunParser::parse_instruction(&ix.data, &account_keys);
                                                             match parsed {
                                                                 ParsedInstruction::Create { mint, dev } => {
+                                                                    // Simulé pour le test gratuit
                                                                     let initial_buy = 2.5;
-                                                                    let cluster = vec![];
-                                                                    if TokenFilter::is_optimal_rug_ride(initial_buy, 5, true, "TOKEN_NAME") {
-                                                                        strategy.on_creation_detected(mint, dev, initial_buy, cluster);
+                                                                    let cluster_count = 6;
+                                                                    
+                                                                    // APPEL DES FILTRES AVANCÉS
+                                                                    if TokenFilter::is_optimal_rug_ride(initial_buy, cluster_count, true, "TOKEN_NAME") {
+                                                                        strategy.on_creation_detected(mint, dev, initial_buy, vec![]).await;
                                                                     }
                                                                 },
                                                                 ParsedInstruction::Sell { seller, .. } => {
-                                                                    strategy.on_dev_sell_detected(seller);
+                                                                    strategy.on_dev_sell_detected(seller).await;
                                                                 },
                                                                 _ => {}
                                                             }
