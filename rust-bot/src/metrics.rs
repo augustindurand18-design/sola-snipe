@@ -25,11 +25,11 @@ impl MetricsServer {
         });
     }
 
-    pub fn record_latency(ms: f64) {
+    pub fn record_latency(_ms: f64) {
         // En prod : LATENCY_HISTOGRAM.observe(ms)
     }
 
-    pub fn record_trade(won: bool, pnl_sol: f64) {
+    pub fn record_trade(_won: bool, _pnl_sol: f64) {
         // En prod : TRADE_COUNTER.with_label_values(&[status]).inc()
     }
 }

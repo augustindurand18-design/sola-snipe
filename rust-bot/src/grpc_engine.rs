@@ -63,6 +63,7 @@ impl GrpcEngine {
                 slots: HashMap::new(),
                 accounts: HashMap::new(),
                 transactions,
+                transactions_status: HashMap::new(),
                 entry: HashMap::new(),
                 blocks: HashMap::new(),
                 blocks_meta: HashMap::new(),
@@ -80,27 +81,29 @@ impl GrpcEngine {
                                 if let Some(update) = msg.update_oneof {
                                     match update {
                                         UpdateOneof::Transaction(tx_update) => {
-                                            if let Some(tx) = tx_update.transaction {
-                                                if let Some(msg_inner) = tx.message {
-                                                    let account_keys: Vec<String> = msg_inner.account_keys
-                                                        .into_iter()
-                                                        .map(|key| bs58::encode(key).into_string())
-                                                        .collect();
+                                            if let Some(tx_info) = tx_update.transaction {
+                                                if let Some(tx) = tx_info.transaction {
+                                                    if let Some(msg_inner) = tx.message {
+                                                        let account_keys: Vec<String> = msg_inner.account_keys
+                                                            .into_iter()
+                                                            .map(|key| bs58::encode(key).into_string())
+                                                            .collect();
 
-                                                    for ix in msg_inner.instructions {
-                                                        let parsed = PumpFunParser::parse_instruction(&ix.data, &account_keys);
-                                                        match parsed {
-                                                            ParsedInstruction::Create { mint, dev } => {
-                                                                let initial_buy = 2.5;
-                                                                let cluster = vec![];
-                                                                if TokenFilter::is_optimal_rug_ride(initial_buy, 5, true, "TOKEN_NAME") {
-                                                                    strategy.on_creation_detected(mint, dev, initial_buy, cluster);
-                                                                }
-                                                            },
-                                                            ParsedInstruction::Sell { seller, .. } => {
-                                                                strategy.on_dev_sell_detected(seller);
-                                                            },
-                                                            _ => {}
+                                                        for ix in msg_inner.instructions {
+                                                            let parsed = PumpFunParser::parse_instruction(&ix.data, &account_keys);
+                                                            match parsed {
+                                                                ParsedInstruction::Create { mint, dev } => {
+                                                                    let initial_buy = 2.5;
+                                                                    let cluster = vec![];
+                                                                    if TokenFilter::is_optimal_rug_ride(initial_buy, 5, true, "TOKEN_NAME") {
+                                                                        strategy.on_creation_detected(mint, dev, initial_buy, cluster);
+                                                                    }
+                                                                },
+                                                                ParsedInstruction::Sell { seller, .. } => {
+                                                                    strategy.on_dev_sell_detected(seller);
+                                                                },
+                                                                _ => {}
+                                                            }
                                                         }
                                                     }
                                                 }

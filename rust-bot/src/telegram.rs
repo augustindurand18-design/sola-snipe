@@ -1,4 +1,4 @@
-use log::{info, error};
+use log::info;
 
 pub struct TelegramAlerts {
     bot_token: String,
