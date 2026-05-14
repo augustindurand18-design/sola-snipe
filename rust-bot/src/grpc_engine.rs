@@ -1,28 +1,51 @@
-use yellowstone_grpc_client::GeyserServiceClient;
+use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterTransactions,
 };
 use futures::stream::StreamExt;
-use log::{info, warn, error};
+use log::{info, error};
 use std::collections::HashMap;
 use crate::parser::{PumpFunParser, ParsedInstruction};
 use crate::strategy::RugRidingStrategy;
 use crate::filters::TokenFilter;
 
 pub struct GrpcEngine {
-    client: GeyserServiceClient,
+    endpoint: String,
 }
 
 impl GrpcEngine {
-    pub async fn new(endpoint: &str, x_token: Option<&str>) -> anyhow::Result<Self> {
-        let mut client = GeyserServiceClient::connect(endpoint, x_token, None).await?;
-        Ok(Self { client })
+    pub async fn new(endpoint: &str) -> anyhow::Result<Self> {
+        info!("🔧 Moteur gRPC initialisé (endpoint: {})", endpoint);
+        Ok(Self {
+            endpoint: endpoint.to_string(),
+        })
     }
 
-    pub async fn subscribe_pump_fun(&mut self, mut risk_manager: crate::risk_manager::RiskManager) -> anyhow::Result<()> {
+    pub async fn subscribe_pump_fun(&mut self, risk_manager: crate::risk_manager::RiskManager) -> anyhow::Result<()> {
         let mut strategy = RugRidingStrategy::new(risk_manager);
         
         loop {
+            info!("🔌 Tentative de connexion gRPC à {}...", self.endpoint);
+
+            let client_result = GeyserGrpcClient::build_from_shared(self.endpoint.clone());
+            let mut client = match client_result {
+                Ok(builder) => {
+                    match builder.connect().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            error!("⚠️ Échec de connexion gRPC : {:?}. Reconnexion dans 2 secondes...", e);
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            continue;
+                        }
+                    }
+                },
+                Err(e) => {
+                    error!("⚠️ Erreur de configuration gRPC : {:?}. Reconnexion dans 2 secondes...", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
             let mut transactions = HashMap::new();
             transactions.insert(
                 "pump_fun_filter".to_string(),
@@ -48,9 +71,9 @@ impl GrpcEngine {
                 ping: None,
             };
 
-            match self.client.subscribe_with_request(Some(request)).await {
+            match client.subscribe_with_request(Some(request)).await {
                 Ok((_, mut stream)) => {
-                    info!("🔌 Connecté au stream gRPC Yellowstone");
+                    info!("✅ Connecté au stream gRPC Yellowstone ! En écoute sur Pump.fun...");
                     while let Some(message) = stream.next().await {
                         match message {
                             Ok(msg) => {
@@ -58,23 +81,23 @@ impl GrpcEngine {
                                     match update {
                                         UpdateOneof::Transaction(tx_update) => {
                                             if let Some(tx) = tx_update.transaction {
-                                                if let Some(message) = tx.message {
-                                                    let account_keys: Vec<String> = message.account_keys
+                                                if let Some(msg_inner) = tx.message {
+                                                    let account_keys: Vec<String> = msg_inner.account_keys
                                                         .into_iter()
                                                         .map(|key| bs58::encode(key).into_string())
                                                         .collect();
 
-                                                    for ix in message.instructions {
+                                                    for ix in msg_inner.instructions {
                                                         let parsed = PumpFunParser::parse_instruction(&ix.data, &account_keys);
                                                         match parsed {
                                                             ParsedInstruction::Create { mint, dev } => {
-                                                                let initial_buy = 2.5; 
-                                                                let cluster = vec![]; 
+                                                                let initial_buy = 2.5;
+                                                                let cluster = vec![];
                                                                 if TokenFilter::is_optimal_rug_ride(initial_buy, 5, true, "TOKEN_NAME") {
                                                                     strategy.on_creation_detected(mint, dev, initial_buy, cluster);
                                                                 }
                                                             },
-                                                            ParsedInstruction::Sell { mint, seller, .. } => {
+                                                            ParsedInstruction::Sell { seller, .. } => {
                                                                 strategy.on_dev_sell_detected(seller);
                                                             },
                                                             _ => {}
@@ -83,32 +106,22 @@ impl GrpcEngine {
                                                 }
                                             }
                                         },
-                                        UpdateOneof::Account(acc_update) => {
-                                            if let Some(acc) = acc_update.account {
-                                                use std::str::FromStr;
-                                                let mint = solana_sdk::pubkey::Pubkey::from_str(&acc.pubkey).unwrap_or_default();
-                                                if let Ok(bonding_curve) = PumpFunParser::parse_bonding_curve(&acc.data) {
-                                                    let price = bonding_curve.get_price_sol();
-                                                    strategy.on_price_update(&mint, price);
-                                                }
-                                            }
-                                        },
                                         _ => {}
                                     }
                                 }
                             },
                             Err(e) => {
-                                error!("⚠️ Erreur du stream interne : {:?}", e);
-                                break; 
+                                error!("⚠️ Déconnexion du stream : {:?}. Reconnexion...", e);
+                                break;
                             }
                         }
                     }
                 },
                 Err(e) => {
-                    error!("⚠️ Échec de connexion gRPC : {:?}. Reconnexion dans 1 seconde...", e);
+                    error!("⚠️ Échec de souscription gRPC : {:?}. Reconnexion dans 2 secondes...", e);
                 }
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
     }
 }
