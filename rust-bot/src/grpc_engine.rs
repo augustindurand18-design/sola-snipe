@@ -57,12 +57,13 @@ impl GrpcEngine {
                     info!("✅ WebSocket connecté ! En écoute sur Pump.fun (Fallback Mode)...");
                     while let Ok(response) = receiver.recv() {
                         let tick = Instant::now();
-                        // Ici, on traite les logs/données du compte via WebSocket
-                        // C'est un peu plus lent que gRPC mais ça permet de tester le bot gratuitement
-                        if let Ok(bonding_curve) = PumpFunParser::parse_bonding_curve(&response.value.account.data) {
-                            let price = bonding_curve.get_price_sol();
-                            if price > 0.0 {
-                                strategy.on_price_update(&response.value.pubkey.parse().unwrap_or_default(), price).await;
+                        if let Some(data) = response.value.account.data.decode() {
+                            if let Ok(bonding_curve) = PumpFunParser::parse_bonding_curve(&data) {
+                                let price = bonding_curve.get_price_sol();
+                                if price > 0.0 {
+                                    let pubkey = solana_sdk::pubkey::Pubkey::from_str(&response.value.pubkey).unwrap_or_default();
+                                    strategy.on_price_update(&pubkey, price).await;
+                                }
                             }
                         }
                         MetricsServer::record_latency(tick.elapsed().as_secs_f64() * 1000.0);
