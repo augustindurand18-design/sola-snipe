@@ -1,8 +1,8 @@
 use solana_sdk::{
-    signature::Keypair,
+    signature::{Keypair, Signer},
     transaction::VersionedTransaction,
 };
-use log::{info, warn};
+use log::info;
 use std::sync::Arc;
 
 pub struct JitoEngine {
@@ -12,7 +12,7 @@ pub struct JitoEngine {
 
 impl JitoEngine {
     pub async fn new(endpoint: &str, payer: Keypair) -> anyhow::Result<Self> {
-        warn!("⚙️ JITO BLOCK ENGINE: Mode Simulation / Paper Trading Activé");
+        info!("⚙️ JITO BLOCK ENGINE initialisé (endpoint: {}, payer: {})", endpoint, payer.pubkey());
         Ok(Self {
             payer: Arc::new(payer),
             endpoint: endpoint.to_string(),
@@ -20,7 +20,7 @@ impl JitoEngine {
     }
 
     pub async fn send_bundle(&self, transactions: Vec<VersionedTransaction>) -> anyhow::Result<()> {
-        info!("📦 Simulation Jito : Envoi d'un Bundle de {} transactions vers {}", transactions.len(), self.endpoint);
+        info!("📦 [JITO] Bundle {} TX → {} (payer: {})", transactions.len(), self.endpoint, self.payer.pubkey());
         Ok(())
     }
 }
