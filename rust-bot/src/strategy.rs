@@ -67,7 +67,8 @@ impl RugRidingStrategy {
         if self.watchlist.contains(&seller) {
             warn!("🧨 [LEAPFROG] Watchlist membre {} vend {} tokens de {} !", seller, token_amount, mint);
 
-            for (pos_mint, _pos) in &self.positions {
+            for (pos_mint, pos) in &self.positions {
+                info!("⚡ Liquidation {} tokens, TX pré-forgée: {} bytes", pos.token_amount, pos.pre_forged_sell_tx.len());
                 self.telegram.alert_leapfrog(&pos_mint.to_string(), &seller.to_string()).await;
             }
 
@@ -107,7 +108,7 @@ impl RugRidingStrategy {
         if to_remove {
             self.positions.remove(mint);
             self.risk_manager.register_trade_result(pnl_sol);
-            let _ = pnl_pct_final; // Used for potential future logging
+            info!("📊 Position clôturée | PnL: {:.2}%", pnl_pct_final);
         }
     }
 }

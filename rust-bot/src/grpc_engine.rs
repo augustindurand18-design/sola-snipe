@@ -4,7 +4,7 @@ use yellowstone_grpc_proto::geyser::{
     SubscribeRequestFilterAccounts,
 };
 use futures::stream::StreamExt;
-use log::{info, warn, error};
+use log::{info, error};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -142,6 +142,10 @@ impl GrpcEngine {
                                         },
                                         UpdateOneof::Account(acc_update) => {
                                             if let Some(acc_info) = acc_update.account {
+                                                // Vérification sécurité Mint
+                                                if acc_info.data.len() == 82 {
+                                                    TokenFilter::is_mint_safe(&acc_info.data);
+                                                }
                                                 if let Ok(bonding_curve) = PumpFunParser::parse_bonding_curve(&acc_info.data) {
                                                     let price = bonding_curve.get_price_sol();
                                                     if price > 0.0 {

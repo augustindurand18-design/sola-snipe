@@ -22,6 +22,7 @@ pub struct SellInstruction {
 }
 
 #[derive(BorshDeserialize, Debug)]
+#[allow(dead_code)]
 pub struct BondingCurveAccount {
     pub discriminator: u64,
     pub virtual_token_reserves: u64,
